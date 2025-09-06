@@ -19,6 +19,22 @@
     <x-input-error :messages="$errors->get('room_type_id')" class="mt-2" />
 </div>
 
+{{-- Status --}}
+<div class="mt-4">
+    <x-input-label for="status" :value="__('Status')" />
+    <select name="status" id="status" class="block mt-1 w-full border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 focus:border-indigo-500 dark:focus:border-indigo-600 focus:ring-indigo-500 dark:focus:ring-indigo-600 rounded-md shadow-sm">
+        @php
+            // Menggunakan variabel $room agar konsisten dengan field lain di form ini
+            $currentStatus = old('status', $room->status ?? 'Tersedia');
+        @endphp
+        <option value="Tersedia" @if($currentStatus == 'Tersedia') selected @endif>Tersedia</option>
+        <option value="Terisi" @if($currentStatus == 'Terisi') selected @endif>Terisi</option>
+        <option value="Kotor" @if($currentStatus == 'Kotor') selected @endif>Kotor</option>
+        <option value="Perbaikan" @if($currentStatus == 'Perbaikan') selected @endif>Perbaikan</option>
+    </select>
+    <x-input-error :messages="$errors->get('status')" class="mt-2" />
+</div>
+
 {{-- Kapasitas (Opsional) --}}
 <div class="mt-4">
     <x-input-label for="capacity" :value="__('Kapasitas (Opsional)')" />
@@ -34,11 +50,10 @@
 </div>
 
 <div class="flex items-center justify-end mt-6">
-    {{-- PERHATIKAN ROUTE ACTION DI SINI --}}
     <a href="{{ route('admin.properties.hotel-rooms.index', $property ?? $room->property) }}" class="text-sm text-gray-600 dark:text-gray-400 hover:underline mr-4">
         Batal
     </a>
     <x-primary-button>
-        {{ isset($room) ? 'Update Kamar' : 'Simpan Kamar' }}
+        {{ isset($room) && $room->id ? 'Update Kamar' : 'Simpan Kamar' }}
     </x-primary-button>
 </div>

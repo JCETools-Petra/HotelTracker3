@@ -5,17 +5,23 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use App\Models\RoomType; // <-- PERBAIKAN ADA DI BARIS INI
 
 class HotelRoom extends Model
 {
     use HasFactory, SoftDeletes;
 
-    protected $table = 'hotel_rooms';
+    public const STATUS_TERSEDIA = 'Tersedia';
+    public const STATUS_TERISI = 'Terisi';
+    public const STATUS_KOTOR = 'Kotor';
+    public const STATUS_PEMBERSIHAN = 'Pembersihan';
+    public const STATUS_PERBAIKAN = 'Perbaikan';
 
     protected $fillable = [
         'property_id',
-        'room_number',
         'room_type_id',
+        'room_number',
+        'status',
         'capacity',
         'notes',
     ];
@@ -30,9 +36,8 @@ class HotelRoom extends Model
         return $this->belongsTo(RoomType::class);
     }
 
-    public function amenities()
+    public function reservations()
     {
-        return $this->belongsToMany(Inventory::class, 'room_amenities', 'room_id', 'inventory_id')
-            ->withPivot('quantity');
+        return $this->hasMany(Reservation::class);
     }
 }

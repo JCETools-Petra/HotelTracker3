@@ -156,6 +156,9 @@
                      <x-responsive-nav-link :href="route('property.income.create')" :active="request()->routeIs('property.income.create')">
                         {{ __('+ Catat Pendapatan') }}
                     </x-responsive-nav-link>
+                    <x-nav-link :href="route('property.frontoffice.index')" :active="request()->routeIs('property.frontoffice.index')">
+                        {{ __('Front Office') }}
+                    </x-nav-link>
                 @else
                     <x-responsive-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard')">
                         {{ __('Dashboard') }}

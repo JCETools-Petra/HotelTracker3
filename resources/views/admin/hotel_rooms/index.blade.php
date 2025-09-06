@@ -37,7 +37,7 @@
                                         @can('manage-data')
                                             <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                                 <a href="{{ route('admin.properties.hotel-rooms.edit', [$property, $room]) }}" class="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-200">Edit</a>
-                                                <form action="{{ route('admin.properties.hotel-rooms.destroy', [$property, $room]) }}" method="POST" class="inline-block ml-4" onsubmit="return confirm('Apakah Anda yakin ingin menghapus kamar ini?');">
+                                                <form action="{{ route('admin.properties.hotel-rooms.destroy', $room) }}" method="POST" class="inline-block ml-4" onsubmit="return confirm('Apakah Anda yakin ingin menghapus kamar ini?');">
                                                     @csrf
                                                     @method('DELETE')
                                                     <button type="submit" class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-200">Hapus</button>

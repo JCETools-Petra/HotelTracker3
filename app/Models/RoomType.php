@@ -4,7 +4,8 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\HasOne; // <-- Pastikan ini di-import
+use Illuminate\Database\Eloquent\Relations\HasMany;// <-- Pastikan ini di-import
+use Illuminate\Database\Eloquent\Relations\HasOne;  
 
 class RoomType extends Model
 {
@@ -14,6 +15,7 @@ class RoomType extends Model
         'property_id',
         'name',
         'bottom_rate',
+        'type',
     ];
 
     /**
@@ -32,5 +34,10 @@ class RoomType extends Model
     public function pricingRule(): HasOne
     {
         return $this->hasOne(PricingRule::class);
+    }
+
+    public function hotelRooms(): HasMany
+    {
+        return $this->hasMany(HotelRoom::class);
     }
 }

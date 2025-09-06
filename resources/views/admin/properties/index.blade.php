@@ -43,7 +43,6 @@
                                     <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Nama Properti</th>
                                     <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Dibuat Pada</th>
                                     
-                                    {{-- Kolom Aksi hanya untuk Admin --}}
                                     @can('manage-data')
                                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Aksi</th>
                                     @endcan
@@ -54,7 +53,6 @@
                                     <tr>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{{ $property->id }}</td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100">
-                                            {{-- Semua peran bisa melihat detail pendapatan --}}
                                             <a href="{{ route('admin.properties.show', $property->id) }}" class="hover:underline">
                                                 {{ $property->name }}
                                             </a>
@@ -63,10 +61,11 @@
                                             {{ $property->created_at ? $property->created_at->isoFormat('D MMM YY, HH:mm') : '-' }}
                                         </td>
                                         
-                                        {{-- Tombol Aksi hanya untuk Admin --}}
                                         @can('manage-data')
                                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
                                                 <a href="{{ route('admin.properties.show', $property) }}" class="text-yellow-600 hover:text-yellow-900 dark:text-yellow-400 dark:hover:text-yellow-200">Pendapatan</a>
+                                                
+                                                <a href="{{ route('admin.properties.room-types.index', $property) }}" class="text-blue-500 hover:underline">Kelola Tipe Kamar</a>
                                                 <a href="{{ route('admin.properties.rooms.index', $property) }}" class="text-green-500 hover:underline">Kelola Ruangan (MICE)</a>
                                                 <a href="{{ route('admin.properties.hotel-rooms.index', $property) }}" class="text-purple-500 hover:underline">Kelola Kamar</a>
                                                 <a href="{{ route('admin.properties.edit', $property->id) }}" class="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-200">Edit</a>
@@ -83,7 +82,6 @@
                                     </tr>
                                 @empty
                                     <tr>
-                                        {{-- Sesuaikan colspan berdasarkan hak akses --}}
                                         <td colspan="@can('manage-data') 4 @else 3 @endcan" class="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-500 dark:text-gray-400">
                                             Tidak ada properti ditemukan.
                                         </td>

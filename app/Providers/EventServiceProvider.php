@@ -7,12 +7,14 @@ use Illuminate\Auth\Listeners\SendEmailVerificationNotification;
 use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvider;
 use Illuminate\Support\Facades\Event;
 
-// === AWAL PERBAIKAN ===
-// Import Event dan Listener dari lokasi yang benar
+// Event dan Listener
 use App\Events\OccupancyUpdated;
-use App\Listeners\SendOccupancyUpdateNotification; // Untuk Email
-use App\Listeners\SendOccupancyUpdateWhatsApp;    // Untuk WhatsApp
-// === AKHIR PERBAIKAN ===
+use App\Listeners\SendOccupancyUpdateNotification;
+use App\Listeners\SendOccupancyUpdateWhatsApp;
+
+// Model dan Observer
+use App\Models\Reservation; 
+use App\Observers\ReservationObserver;
 
 class EventServiceProvider extends ServiceProvider
 {
@@ -25,12 +27,22 @@ class EventServiceProvider extends ServiceProvider
         Registered::class => [
             SendEmailVerificationNotification::class,
         ],
-
-        // Pastikan blok ini terlihat seperti ini
         OccupancyUpdated::class => [
             //SendOccupancyUpdateNotification::class,
             SendOccupancyUpdateWhatsApp::class,
         ],
+    ];
+
+    /**
+     * The model observers for your application.
+     *
+     * @var array
+     */
+    // ==========================================================
+    // == BAGIAN YANG PERLU DITAMBAHKAN ADA DI SINI ==
+    // ==========================================================
+    protected $observers = [
+        Reservation::class => [ReservationObserver::class],
     ];
 
     /**
