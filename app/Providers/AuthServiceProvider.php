@@ -5,6 +5,14 @@ namespace App\Providers;
 use App\Models\User;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Foundation\Support\Providers\AuthServiceProvider as ServiceProvider;
+use App\Models\Restaurant;
+use App\Policies\RestaurantPolicy;
+use App\Models\MenuCategory;
+use App\Policies\MenuCategoryPolicy;
+use App\Models\Table;
+use App\Policies\TablePolicy;
+use App\Models\Menu;
+use App\Policies\MenuPolicy;
 
 class AuthServiceProvider extends ServiceProvider
 {
@@ -14,7 +22,11 @@ class AuthServiceProvider extends ServiceProvider
      * @var array<class-string, class-string>
      */
     protected $policies = [
-        'App\Models\DailyIncome' => 'App\Policies\DailyIncomePolicy', // Pastikan policy ini ada jika digunakan
+        'App\Models\DailyIncome' => 'App\Policies\DailyIncomePolicy',
+        Restaurant::class => RestaurantPolicy::class,
+        MenuCategory::class => MenuCategoryPolicy::class,
+        Table::class => TablePolicy::class,
+        Menu::class => MenuPolicy::class,
     ];
 
     /**

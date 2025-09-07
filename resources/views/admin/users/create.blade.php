@@ -29,7 +29,7 @@
                         {{-- Peran (Role) --}}
                         <div class="mt-4">
                             <x-input-label for="role" :value="__('Peran (Role)')" />
-                            <select name="role" id="role" class="block mt-1 w-full border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 focus:border-indigo-500 dark:focus:border-indigo-600 focus:ring-indigo-500 dark:focus:ring-indigo-600 rounded-md shadow-sm" required onchange="togglePropertySelect(this.value)">
+                            <select name="role" id="role" class="block mt-1 w-full border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 focus:border-indigo-500 dark:focus:border-indigo-600 focus:ring-indigo-500 dark:focus:ring-indigo-600 rounded-md shadow-sm" required onchange="toggleConditionalFields(this.value)">
                                 <option value="">-- Pilih Peran --</option>
                                 @foreach($roles as $roleValue => $roleLabel)
                                     <option value="{{ $roleValue }}" {{ old('role') == $roleValue ? 'selected' : '' }}>
@@ -40,7 +40,7 @@
                             <x-input-error :messages="$errors->get('role')" class="mt-2" />
                         </div>
 
-                        {{-- Pilihan Properti (Akan muncul/sembunyi otomatis) --}}
+                        {{-- Pilihan Properti (Conditional) --}}
                         <div class="mt-4" id="property-select-container" style="display: none;">
                             <x-input-label for="property_id" :value="__('Properti yang Dikelola')" />
                             <select name="property_id" id="property_id" class="block mt-1 w-full border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 focus:border-indigo-500 dark:focus:border-indigo-600 focus:ring-indigo-500 dark:focus:ring-indigo-600 rounded-md shadow-sm">
@@ -52,6 +52,20 @@
                                 @endforeach
                             </select>
                             <x-input-error :messages="$errors->get('property_id')" class="mt-2" />
+                        </div>
+                        
+                        {{-- Pilihan Restoran (Conditional) --}}
+                        <div class="mt-4" id="restaurant-select-container" style="display: none;">
+                            <x-input-label for="restaurant_id" :value="__('Restoran Tempat Bekerja')" />
+                            <select name="restaurant_id" id="restaurant_id" class="block mt-1 w-full border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 focus:border-indigo-500 dark:focus:border-indigo-600 focus:ring-indigo-500 dark:focus:ring-indigo-600 rounded-md shadow-sm">
+                                <option value="">-- Pilih Restoran --</option>
+                                @foreach($restaurants as $restaurant)
+                                    <option value="{{ $restaurant->id }}" {{ old('restaurant_id') == $restaurant->id ? 'selected' : '' }}>
+                                        {{ $restaurant->name }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            <x-input-error :messages="$errors->get('restaurant_id')" class="mt-2" />
                         </div>
                         
                         {{-- Password --}}
@@ -82,29 +96,42 @@
 
     @push('scripts')
     <script>
-        function togglePropertySelect(role) {
-            const propertySelectContainer = document.getElementById('property-select-container');
+        function toggleConditionalFields(role) {
+            const propertyContainer = document.getElementById('property-select-container');
             const propertySelect = document.getElementById('property_id');
+            const restaurantContainer = document.getElementById('restaurant-select-container');
+            const restaurantSelect = document.getElementById('restaurant_id');
             
-            // !! PERUBAHAN ADA DI BARIS INI !!
-            // Menambahkan 'hk' ke dalam array rolesRequiringProperty
-            const rolesRequiringProperty = ['pengguna_properti', 'sales', 'online_ecommerce', 'hk'];
+            // Definisikan peran mana yang butuh field apa
+            const rolesRequiringProperty = ['pengguna_properti', 'sales', 'online_ecommerce', 'hk', 'manager_properti'];
+            const rolesRequiringRestaurant = ['restaurant'];
 
+            // Logika untuk menampilkan/menyembunyikan field Properti
             if (rolesRequiringProperty.includes(role)) {
-                propertySelectContainer.style.display = 'block';
+                propertyContainer.style.display = 'block';
                 propertySelect.required = true;
             } else {
-                propertySelectContainer.style.display = 'none';
+                propertyContainer.style.display = 'none';
                 propertySelect.required = false;
-                propertySelect.value = ''; // Kosongkan pilihan saat disembunyikan
+                propertySelect.value = '';
+            }
+
+            // Logika untuk menampilkan/menyembunyikan field Restoran
+            if (rolesRequiringRestaurant.includes(role)) {
+                restaurantContainer.style.display = 'block';
+                restaurantSelect.required = true;
+            } else {
+                restaurantContainer.style.display = 'none';
+                restaurantSelect.required = false;
+                restaurantSelect.value = '';
             }
         }
 
-        // Panggil fungsi ini saat halaman dimuat untuk menangani old('role')
+        // Panggil fungsi ini saat halaman dimuat untuk menangani jika ada error validasi (old value)
         document.addEventListener('DOMContentLoaded', function() {
             const roleSelect = document.getElementById('role');
             if (roleSelect.value) {
-                togglePropertySelect(roleSelect.value);
+                toggleConditionalFields(roleSelect.value);
             }
         });
     </script>

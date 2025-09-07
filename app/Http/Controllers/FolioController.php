@@ -57,21 +57,28 @@ class FolioController extends Controller
 
     public function processCheckout(Request $request, Reservation $reservation)
     {
-        $folio = $reservation->folio;
-        // Diperbarui: Izinkan checkout jika saldo 0 atau kurang (ada kembalian)
-        if ($folio->balance > 0) {
-            return back()->with('error', 'Check-out tidak dapat diproses. Saldo tagihan masih belum lunas.');
-        }
+        // Validasi bisa ditambahkan di sini jika perlu
+
+        // Pastikan tagihan sudah lunas sebelum checkout
+        if ($reservation->folio && $reservation->folio->balance > 0) {
+            return back()->with('error', 'Folio balance must be zero or less to checkout.');
+        }                                   
+
+        // 1. Perbarui status reservasi menjadi 'checked-out'
         $reservation->update([
-            'status' => 'Checked-out',
-            'checked_out_at' => now(),
-            'checkout_date' => now(),
+            'status' => 'checked-out',
+            'checked_out_at' => now(), // Catat waktu checkout
         ]);
+
+        // 2. Perbarui status kamar menjadi 'dirty' (atau 'vacant dirty')
         if ($reservation->hotelRoom) {
-            $reservation->hotelRoom->update(['status' => \App\Models\HotelRoom::STATUS_KOTOR]);
+            $reservation->hotelRoom->update(['status' => 'dirty']);
         }
-        return redirect()->route('property.frontoffice.index')
-                         ->with('success', "Tamu '{$reservation->guest_name}' berhasil Check-out.");
+
+        // Catat aktivitas (jika Anda menggunakan trait LogActivity)
+        // $this->logActivity('Checked out guest ' . $reservation->guest_name);
+
+        return redirect()->route('property.frontoffice.index')->with('success', 'Guest has been checked out successfully.');
     }
 
     public function printReceipt(Reservation $reservation)

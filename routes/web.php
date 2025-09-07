@@ -30,7 +30,11 @@ use App\Http\Controllers\Ecommerce\DashboardController as EcommerceDashboardCont
 use App\Http\Controllers\Ecommerce\ReservationController as EcommerceReservationController;
 use App\Http\Controllers\FolioController;
 use App\Http\Controllers\FrontOfficeController;
-
+use App\Http\Controllers\Admin\RestaurantController;
+use App\Http\Controllers\Admin\MenuCategoryController;
+use App\Http\Controllers\Admin\TableController;
+use App\Http\Controllers\Admin\MenuController;
+use App\Http\Controllers\Admin\PosController;
 
 /*
 |--------------------------------------------------------------------------
@@ -43,6 +47,10 @@ Route::get('/', function () {
         $user = Auth::user();
         if (in_array($user->role, ['admin', 'owner', 'pengurus'])) {
             return redirect()->route('admin.dashboard');
+        } elseif ($user->role === 'manager_properti') {
+            return redirect()->route('property.dashboard');
+        } elseif ($user->role === 'restaurant') {
+            return redirect()->route('admin.pos.index');
         } elseif ($user->role === 'pengguna_properti') {
             return redirect()->route('property.dashboard');
         } elseif ($user->role === 'sales') {
@@ -50,7 +58,7 @@ Route::get('/', function () {
         } elseif ($user->role === 'online_ecommerce') {
             return redirect()->route('ecommerce.dashboard');
         } elseif ($user->role === 'hk') {
-            return redirect()->route('housekeeping.room-status.index'); // Diarahkan ke halaman status kamar baru
+            return redirect()->route('housekeeping.room-status.index');
         }
         return redirect()->route('dashboard');
     }
@@ -66,6 +74,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
         $user = Auth::user();
         if (in_array($user->role, ['admin', 'owner', 'pengurus'])) {
             return redirect()->route('admin.dashboard');
+        } elseif ($user->role === 'manager_properti') {
+            return redirect()->route('property.dashboard');
+        } elseif ($user->role === 'restaurant') {
+            return redirect()->route('admin.pos.index');
         } elseif ($user->role === 'pengguna_properti') {
             return redirect()->route('property.dashboard');
         } elseif ($user->role === 'online_ecommerce') {
@@ -73,7 +85,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         } elseif ($user->role === 'sales') {
             return redirect()->route('sales.dashboard');
         } elseif ($user->role === 'hk') {
-            return redirect()->route('housekeeping.room-status.index'); // Diarahkan ke halaman status kamar baru
+            return redirect()->route('housekeeping.room-status.index');
         }
         abort(403, 'Tidak ada dashboard yang sesuai untuk peran Anda.');
     })->name('dashboard');
@@ -83,14 +95,18 @@ require __DIR__ . '/auth.php';
 
 
 // Grup Admin (Laporan & Manajemen)
-Route::prefix('admin')->middleware(['auth', 'verified', 'role:admin,owner,pengurus'])->name('admin.')->group(function () {
-    // Rute Laporan
-    Route::get('/dashboard', [AdminDashboardController::class, 'index'])->name('dashboard');
-    Route::get('/kpi-analysis', [AdminDashboardController::class, 'kpiAnalysis'])->name('kpi.analysis');
-    Route::get('/kpi-analysis/export', [AdminDashboardController::class, 'exportKpiAnalysis'])->name('kpi.analysis.export');
-    Route::get('/properties/compare', [AdminPropertyController::class, 'showComparisonForm'])->name('properties.compare_page');
-    Route::get('/properties/compare/results', [AdminPropertyController::class, 'showComparisonResults'])->name('properties.compare.results');
-    Route::get('properties/{property}', [AdminPropertyController::class, 'show'])->name('properties.show');
+// PERBAIKAN UTAMA: Middleware utama hanya untuk akses umum ke prefix /admin
+Route::prefix('admin')->middleware(['auth', 'verified', 'role:admin,owner,pengurus,manager_properti,restaurant'])->name('admin.')->group(function () {
+
+    // Rute Laporan (akses oleh admin, owner, pengurus)
+    Route::middleware('role:admin,owner,pengurus')->group(function() {
+        Route::get('/dashboard', [AdminDashboardController::class, 'index'])->name('dashboard');
+        Route::get('/kpi-analysis', [AdminDashboardController::class, 'kpiAnalysis'])->name('kpi.analysis');
+        Route::get('/kpi-analysis/export', [AdminDashboardController::class, 'exportKpiAnalysis'])->name('kpi.analysis.export');
+        Route::get('/properties/compare', [AdminPropertyController::class, 'showComparisonForm'])->name('properties.compare_page');
+        Route::get('/properties/compare/results', [AdminPropertyController::class, 'showComparisonResults'])->name('properties.compare.results');
+        Route::get('properties/{property}', [AdminPropertyController::class, 'show'])->name('properties.show');
+    });
 
     // Rute Manajemen (Admin & Owner)
     Route::middleware('role:admin,owner')->group(function() {
@@ -132,6 +148,30 @@ Route::prefix('admin')->middleware(['auth', 'verified', 'role:admin,owner,pengur
             Route::put('/update-property-bars', [PricingRuleController::class, 'updatePropertyBars'])->name('property-bars.update');
         });
     });
+
+    // Rute F&B (Akses oleh admin, owner, manager_properti)
+    Route::middleware('role:admin,owner,manager_properti')->group(function () {
+        Route::resource('restaurants', RestaurantController::class);
+        Route::resource('menu-categories', MenuCategoryController::class);
+        Route::resource('tables', TableController::class);
+        Route::resource('menus', MenuController::class);
+    });
+    
+    // Rute POS (Akses oleh semua peran di grup admin utama, karena sudah difilter di controller)
+    Route::get('pos', [PosController::class, 'index'])->name('pos.index');
+    Route::get('pos/{restaurant}', [PosController::class, 'show'])->name('pos.show');
+    Route::get('pos/order/table/{table}', [PosController::class, 'order'])->name('pos.order');
+    Route::post('pos/order/{order}/add', [PosController::class, 'addItem'])->name('pos.order.add');
+    Route::post('pos/order/item/{orderItem}/increase', [PosController::class, 'increaseItem'])->name('pos.order.increase');
+    Route::post('pos/order/item/{orderItem}/decrease', [PosController::class, 'decreaseItem'])->name('pos.order.decrease');
+    Route::delete('pos/order/item/{orderItem}/remove', [PosController::class, 'removeItem'])->name('pos.order.remove');
+    Route::post('pos/order/{order}/complete', [PosController::class, 'completeOrder'])->name('pos.order.complete');
+    Route::get('pos/order/{order}/print', [PosController::class, 'printBill'])->name('pos.order.print');
+    Route::post('pos/order/{order}/cancel', [PosController::class, 'cancelOrder'])->name('pos.order.cancel');
+    Route::post('pos/order/{order}/apply-discount', [PosController::class, 'applyDiscount'])->name('pos.order.discount');
+    Route::post('pos/order/{order}/charge-to-room', [PosController::class, 'chargeToRoom'])->name('pos.order.charge');
+    Route::get('pos/{restaurant}/room-service', [PosController::class, 'createRoomServiceOrder'])->name('pos.roomservice.create');
+
 });
 
 // Route Sales
@@ -163,19 +203,19 @@ Route::prefix('housekeeping')->middleware(['auth', 'verified', 'role:hk,owner'])
 });
 
 // Route Pengguna Properti
-Route::prefix('property')->middleware(['auth', 'verified', 'role:pengguna_properti,owner'])->name('property.')->group(function () {
+// PERBAIKAN: Menambahkan 'manager_properti' ke middleware
+Route::prefix('property')->middleware(['auth', 'verified', 'role:pengguna_properti,owner,manager_properti'])->name('property.')->group(function () {
     Route::get('/dashboard', [PropertyIncomeController::class, 'dashboard'])->name('dashboard');
     Route::get('/calendar', [PropertyIncomeController::class, 'calendar'])->name('calendar.index');
     Route::get('/calendar-data', [PropertyIncomeController::class, 'getCalendarData'])->name('calendar.data');
     
-
     // --- GRUP RUTE UNTUK FRONT OFFICE ---
     Route::prefix('front-office')->name('frontoffice.')->group(function () {
         Route::get('/', [FrontOfficeController::class, 'index'])->name('index');
-        Route::post('/reservation', [FrontOfficeController::class, 'storeReservation'])->name('reservation.store'); // <-- Pastikan rute ini ada
+        Route::post('/reservation', [FrontOfficeController::class, 'storeReservation'])->name('reservation.store');
         Route::post('/check-in/{reservation}', [FrontOfficeController::class, 'checkIn'])->name('check-in');
         Route::post('/cancel/{reservation}', [FrontOfficeController::class, 'cancel'])->name('cancel');
-        Route::post('/room/{room}/update-status', [FrontOfficeController::class, 'updateRoomStatus'])->name('room.update-status');
+        Route::post('/hotel-room/{room}/update-status', [FrontOfficeController::class, 'updateRoomStatus'])->name('room.update-status');
     });
 
     // --- GRUP RUTE UNTUK FOLIO ---

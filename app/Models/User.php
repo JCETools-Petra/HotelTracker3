@@ -22,7 +22,8 @@ class User extends Authenticatable implements MustVerifyEmail
         'email',
         'password',
         'role',
-        'property_id', // <-- TAMBAHKAN INI
+        'property_id',
+        'restaurant_id',
     ];
 
     /**
@@ -57,8 +58,16 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->belongsTo(Property::class);
     }
 
+    /**
+     * Relasi ke Restaurant (untuk staf restoran)
+     */
+    public function restaurant()
+    {
+        return $this->belongsTo(Restaurant::class);
+    }
+
     public function isHousekeeper()
-{
-    return $this->role === 'hk';
-}
+    {
+        return $this->role === 'hk';
+    }
 }
