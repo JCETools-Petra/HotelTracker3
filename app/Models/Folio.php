@@ -32,6 +32,9 @@ class Folio extends Model
     /**
      * Fungsi terpusat untuk menghitung ulang seluruh total pada folio.
      */
+    /**
+ * Fungsi terpusat untuk menghitung ulang seluruh total pada folio.
+ */
     public function recalculate()
     {
         // Muat ulang relasi item untuk mendapatkan data terbaru
@@ -40,13 +43,20 @@ class Folio extends Model
         $subtotal = $this->items->where('type', 'charge')->sum('amount');
         $totalPayments = $this->items->where('type', 'payment')->sum('amount');
 
-        $serviceAmount = $subtotal * 0.10; // 10% Service
-        $taxAmount = ($subtotal + $serviceAmount) * 0.11; // 11% Pajak dari (Subtotal + Service)
+        // PERBAIKAN: Gunakan persentase dari database, TAPI berikan nilai default jika kosong.
+        // Ini membuat sistem bekerja untuk folio lama (yang mungkin persentasenya 0) dan baru.
+        $serviceRate = ($this->service_percentage > 0) ? $this->service_percentage / 100 : 0.10; // Default 10%
+        $taxRate = ($this->tax_percentage > 0) ? $this->tax_percentage / 100 : 0.11;     // Default 11%
 
-        $grandTotal = $subtotal + $serviceAmount + $taxAmount;
+        // Bulatkan setiap hasil perhitungan untuk menghindari sisa desimal
+        $serviceAmount = round($subtotal * $serviceRate, 0);
+        $taxAmount = round(($subtotal + $serviceAmount) * $taxRate, 0);
+        $grandTotal = round($subtotal + $serviceAmount + $taxAmount, 0);
+        
+        // Saldo dihitung dari angka yang sudah pasti
         $balance = $grandTotal - $totalPayments;
 
-        // Update data tanpa memicu event model lagi untuk menghindari loop tak terbatas
+        // Update data dengan nilai yang sudah dibulatkan dan pasti
         $this->subtotal = $subtotal;
         $this->service_amount = $serviceAmount;
         $this->tax_amount = $taxAmount;

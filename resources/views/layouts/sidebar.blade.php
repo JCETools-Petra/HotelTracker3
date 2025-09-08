@@ -143,6 +143,22 @@
                     {{ __('Point of Sale') }}
                 </x-side-nav-link>
 
+                {{-- PENAMBAHAN BLOK MENU KONTEKSTUAL UNTUK POS --}}
+                @if(request()->route('restaurant'))
+                    <div class="pt-4 mt-4 border-t border-gray-200 dark:border-gray-700">
+                        <p class="px-4 py-2 text-xs font-semibold text-gray-400 uppercase">
+                            {{ request()->route('restaurant')->name }}
+                        </p>
+                        <x-side-nav-link :href="route('admin.pos.show', request()->route('restaurant'))" :active="request()->routeIs('admin.pos.show')">
+                            {{ __('Table View') }}
+                        </x-side-nav-link>
+                        <x-side-nav-link :href="route('admin.pos.history', request()->route('restaurant'))" :active="request()->routeIs('admin.pos.history')">
+                            {{ __('Order History') }}
+                        </x-side-nav-link>
+                    </div>
+                @endif
+                {{-- AKHIR PENAMBAHAN --}}
+
             {{-- =================================== --}}
             {{--  MENU UNTUK PENGURUS (AKSES LIHAT) --}}
             {{-- =================================== --}}

@@ -5,8 +5,9 @@
                 <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
                     Folio Tamu: {{ $reservation->guest_name }}
                 </h2>
+                {{-- PERBAIKAN: Mengambil data nomor kamar dan tipe kamar dari relasi yang benar --}}
                 <p class="text-sm text-gray-500">
-                    Kamar {{ $reservation->hotelRoom->number ?? 'N/A' }} ({{ $reservation->roomType->name }})
+                    Kamar {{ $reservation->hotelRoom->room_number ?? 'N/A' }} ({{ $reservation->hotelRoom->roomType->name ?? 'N/A' }})
                 </p>
             </div>
             <a href="{{ route('property.frontoffice.index') }}" class="text-sm text-blue-600 hover:underline">
@@ -49,7 +50,7 @@
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
-                                    @forelse($folio->items as $item)
+                                    @forelse($folio->items->sortBy('created_at') as $item)
                                         <tr>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm">{{ $item->created_at->isoFormat('D MMM YYYY') }}</td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm">{{ $item->description }}</td>
@@ -70,36 +71,45 @@
                                         </tr>
                                     @endforelse
                                 </tbody>
-                                <tfoot class="bg-gray-100 dark:bg-gray-700/50">
+                                <tfoot class="bg-gray-100 dark:bg-gray-700/50 text-sm">
+                                    @if($folio->subtotal > 0)
                                     <tr>
-                                        <td colspan="3" class="px-6 py-2 text-right font-semibold">Subtotal</td>
-                                        <td class="px-6 py-2 text-right font-semibold">{{ number_format($folio->subtotal, 0, ',', '.') }}</td>
+                                        <td colspan="2"></td>
+                                        <td class="px-6 py-2 text-right font-semibold">Subtotal</td>
+                                        <td class="px-6 py-2 text-right font-semibold">Rp {{ number_format($folio->subtotal, 0, ',', '.') }}</td>
                                     </tr>
                                     <tr>
-                                        <td colspan="3" class="px-6 py-2 text-right">Layanan (10%)</td>
-                                        <td class="px-6 py-2 text-right">{{ number_format($folio->service_amount, 0, ',', '.') }}</td>
+                                        <td colspan="2"></td>
+                                        <td class="px-6 py-2 text-right">Layanan ({{ $folio->service_percentage }}%)</td>
+                                        <td class="px-6 py-2 text-right">Rp {{ number_format($folio->service_amount, 0, ',', '.') }}</td>
                                     </tr>
                                     <tr>
-                                        <td colspan="3" class="px-6 py-2 text-right border-b">Pajak (11%)</td>
-                                        <td class="px-6 py-2 text-right border-b">{{ number_format($folio->tax_amount, 0, ',', '.') }}</td>
+                                        <td colspan="2"></td>
+                                        <td class="px-6 py-2 text-right border-b dark:border-gray-600">Pajak ({{ $folio->tax_percentage }}%)</td>
+                                        <td class="px-6 py-2 text-right border-b dark:border-gray-600">Rp {{ number_format($folio->tax_amount, 0, ',', '.') }}</td>
+                                    </tr>
+                                    @endif
+                                    <tr>
+                                        <td colspan="2"></td>
+                                        <td class="px-6 py-3 text-right font-bold">Grand Total</td>
+                                        <td class="px-6 py-3 text-right font-bold">Rp {{ number_format($folio->grand_total, 0, ',', '.') }}</td>
                                     </tr>
                                     <tr>
-                                        <td colspan="3" class="px-6 py-3 text-right font-bold">Grand Total</td>
-                                        <td class="px-6 py-3 text-right font-bold">{{ number_format($folio->grand_total, 0, ',', '.') }}</td>
-                                    </tr>
-                                    <tr>
-                                        <td colspan="3" class="px-6 py-3 text-right font-bold">Total Pembayaran</td>
-                                        <td class="px-6 py-3 text-right font-bold text-green-600">{{ number_format($folio->total_payments, 0, ',', '.') }}</td>
+                                        <td colspan="2"></td>
+                                        <td class="px-6 py-3 text-right font-bold">Total Pembayaran</td>
+                                        <td class="px-6 py-3 text-right font-bold text-green-600">Rp {{ number_format($folio->total_payments, 0, ',', '.') }}</td>
                                     </tr>
                                     @if ($folio->balance < 0)
                                         <tr>
-                                            <td colspan="3" class="px-6 py-3 text-right font-bold text-lg">Uang Kembalian</td>
-                                            <td class="px-6 py-3 text-right font-bold text-lg text-blue-600 dark:text-blue-400">{{ number_format(abs($folio->balance), 0, ',', '.') }}</td>
+                                            <td colspan="2"></td>
+                                            <td class="px-6 py-3 text-right font-bold text-lg">Uang Kembalian</td>
+                                            <td class="px-6 py-3 text-right font-bold text-lg text-blue-600 dark:text-blue-400">Rp {{ number_format(abs($folio->balance), 0, ',', '.') }}</td>
                                         </tr>
                                     @else
                                         <tr>
-                                            <td colspan="3" class="px-6 py-3 text-right font-bold text-lg">Saldo Terutang</td>
-                                            <td class="px-6 py-3 text-right font-bold text-lg {{ $folio->balance > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400' }}">{{ number_format($folio->balance, 0, ',', '.') }}</td>
+                                            <td colspan="2"></td>
+                                            <td class="px-6 py-3 text-right font-bold text-lg">Saldo Terutang</td>
+                                            <td class="px-6 py-3 text-right font-bold text-lg {{ round($folio->balance) > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400' }}">Rp {{ number_format($folio->balance, 0, ',', '.') }}</td>
                                         </tr>
                                     @endif
                                 </tfoot>
@@ -116,9 +126,11 @@
                                 <a href="{{ route('property.folio.print-receipt', $reservation) }}" target="_blank" class="w-full inline-flex justify-center items-center px-4 py-2 bg-gray-500 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-gray-600">
                                     Print Receipt
                                 </a>
-                                <form action="{{ route('property.folio.process-checkout', $reservation) }}" method="POST">
+                                <form action="{{ route('property.folio.process-checkout', $reservation) }}" method="POST" onsubmit="return confirm('Anda yakin ingin check-out tamu ini?');">
                                     @csrf
-                                    <x-primary-button class="w-full justify-center" :disabled="$folio->balance > 0" title="{{ $folio->balance > 0 ? 'Saldo harus lunas (Rp 0) untuk check-out' : '' }}">
+                                    <x-primary-button class="w-full justify-center" 
+                                                      :disabled="round($folio->balance, 2) > 0" 
+                                                      title="{{ round($folio->balance, 2) > 0 ? 'Saldo harus lunas (Rp 0) untuk check-out' : 'Lanjutkan proses check-out' }}">
                                         Proses Check-out
                                     </x-primary-button>
                                 </form>
@@ -144,7 +156,7 @@
                     </div>
                     <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
                         <form action="{{ route('property.folio.add-payment', $folio) }}" method="POST" class="p-6">
-                             @csrf
+                               @csrf
                             <h3 class="text-lg font-semibold mb-4">Catat Pembayaran</h3>
                             <div class="space-y-4">
                                 <div>

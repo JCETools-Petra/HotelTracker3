@@ -3,38 +3,48 @@
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Auth;
 use App\Http\Controllers\ProfileController;
+
+// General Controllers
+use App\Http\Controllers\FolioController;
+use App\Http\Controllers\FrontOfficeController;
 use App\Http\Controllers\PropertyIncomeController;
-use App\Http\Controllers\Admin\UserController as AdminUserController;
-use App\Http\Controllers\Admin\RoomController as AdminRoomController;
-use App\Http\Controllers\Admin\PropertyController as AdminPropertyController;
+
+// Admin Controllers
+use App\Http\Controllers\Admin\ActivityLogController;
 use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\Admin\HotelRoomController as AdminHotelRoomController;
 use App\Http\Controllers\Admin\IncomeController as AdminIncomeController;
-use App\Http\Controllers\Admin\SettingController;
-use App\Http\Controllers\Admin\ActivityLogController;
-use App\Http\Controllers\Admin\TargetController;
 use App\Http\Controllers\Admin\InventoryController as AdminInventoryController;
+use App\Http\Controllers\Admin\MenuCategoryController;
+use App\Http\Controllers\Admin\MenuController;
 use App\Http\Controllers\Admin\MiceCategoryController;
+use App\Http\Controllers\Admin\PosController;
 use App\Http\Controllers\Admin\PricePackageController;
 use App\Http\Controllers\Admin\PricingRuleController;
+use App\Http\Controllers\Admin\PropertyController as AdminPropertyController;
+use App\Http\Controllers\Admin\RestaurantController;
 use App\Http\Controllers\Admin\RevenueTargetController;
+use App\Http\Controllers\Admin\RoomController as AdminRoomController;
 use App\Http\Controllers\Admin\RoomTypeController;
+use App\Http\Controllers\Admin\SettingController;
+use App\Http\Controllers\Admin\TableController;
+use App\Http\Controllers\Admin\TargetController;
+use App\Http\Controllers\Admin\UserController as AdminUserController;
+
+// Sales Controllers
 use App\Http\Controllers\Sales\BookingController;
 use App\Http\Controllers\Sales\CalendarController as SalesCalendarController;
 use App\Http\Controllers\Sales\DashboardController as SalesDashboardController;
 use App\Http\Controllers\Sales\DocumentController;
+
+// Housekeeping Controllers
 use App\Http\Controllers\Housekeeping\InventoryController;
 use App\Http\Controllers\Housekeeping\RoomStatusController;
+
+// Ecommerce Controllers
 use App\Http\Controllers\Ecommerce\BarDisplayController;
 use App\Http\Controllers\Ecommerce\DashboardController as EcommerceDashboardController;
 use App\Http\Controllers\Ecommerce\ReservationController as EcommerceReservationController;
-use App\Http\Controllers\FolioController;
-use App\Http\Controllers\FrontOfficeController;
-use App\Http\Controllers\Admin\RestaurantController;
-use App\Http\Controllers\Admin\MenuCategoryController;
-use App\Http\Controllers\Admin\TableController;
-use App\Http\Controllers\Admin\MenuController;
-use App\Http\Controllers\Admin\PosController;
 
 /*
 |--------------------------------------------------------------------------
@@ -42,51 +52,37 @@ use App\Http\Controllers\Admin\PosController;
 |--------------------------------------------------------------------------
 */
 
+// Rute Awal, langsung arahkan ke dashboard untuk dicek rolenya
 Route::get('/', function () {
-    if (Auth::check()) {
-        $user = Auth::user();
-        if (in_array($user->role, ['admin', 'owner', 'pengurus'])) {
-            return redirect()->route('admin.dashboard');
-        } elseif ($user->role === 'manager_properti') {
-            return redirect()->route('property.dashboard');
-        } elseif ($user->role === 'restaurant') {
-            return redirect()->route('admin.pos.index');
-        } elseif ($user->role === 'pengguna_properti') {
-            return redirect()->route('property.dashboard');
-        } elseif ($user->role === 'sales') {
-            return redirect()->route('sales.dashboard');
-        } elseif ($user->role === 'online_ecommerce') {
-            return redirect()->route('ecommerce.dashboard');
-        } elseif ($user->role === 'hk') {
-            return redirect()->route('housekeeping.room-status.index');
-        }
-        return redirect()->route('dashboard');
-    }
-    return view('auth.login');
+    return Auth::check() ? redirect()->route('dashboard') : view('auth.login');
 });
 
+// Grup Rute yang memerlukan Autentikasi
 Route::middleware(['auth', 'verified'])->group(function () {
+    // Profile Routes
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
+    // Dashboard utama yang akan mengarahkan berdasarkan role
     Route::get('/dashboard', function () {
         $user = Auth::user();
-        if (in_array($user->role, ['admin', 'owner', 'pengurus'])) {
-            return redirect()->route('admin.dashboard');
-        } elseif ($user->role === 'manager_properti') {
-            return redirect()->route('property.dashboard');
-        } elseif ($user->role === 'restaurant') {
-            return redirect()->route('admin.pos.index');
-        } elseif ($user->role === 'pengguna_properti') {
-            return redirect()->route('property.dashboard');
-        } elseif ($user->role === 'online_ecommerce') {
-            return redirect()->route('ecommerce.dashboard');
-        } elseif ($user->role === 'sales') {
-            return redirect()->route('sales.dashboard');
-        } elseif ($user->role === 'hk') {
-            return redirect()->route('housekeeping.room-status.index');
+        $roleRoutes = [
+            'admin' => 'admin.dashboard',
+            'owner' => 'admin.dashboard',
+            'pengurus' => 'admin.dashboard',
+            'manager_properti' => 'property.dashboard',
+            'restaurant' => 'admin.pos.index',
+            'pengguna_properti' => 'property.dashboard',
+            'sales' => 'sales.dashboard',
+            'online_ecommerce' => 'ecommerce.dashboard',
+            'hk' => 'housekeeping.room-status.index',
+        ];
+
+        if (isset($roleRoutes[$user->role])) {
+            return redirect()->route($roleRoutes[$user->role]);
         }
+
         abort(403, 'Tidak ada dashboard yang sesuai untuk peran Anda.');
     })->name('dashboard');
 });
@@ -95,7 +91,6 @@ require __DIR__ . '/auth.php';
 
 
 // Grup Admin (Laporan & Manajemen)
-// PERBAIKAN UTAMA: Middleware utama hanya untuk akses umum ke prefix /admin
 Route::prefix('admin')->middleware(['auth', 'verified', 'role:admin,owner,pengurus,manager_properti,restaurant'])->name('admin.')->group(function () {
 
     // Rute Laporan (akses oleh admin, owner, pengurus)
@@ -156,21 +151,40 @@ Route::prefix('admin')->middleware(['auth', 'verified', 'role:admin,owner,pengur
         Route::resource('tables', TableController::class);
         Route::resource('menus', MenuController::class);
     });
+
+    // ================================================================
+    // PENYESUAIAN UTAMA PADA BLOK RUTE POS
+    // ================================================================
+    Route::prefix('pos')->name('pos.')->group(function() {
+        Route::get('/', [PosController::class, 'index'])->name('index');
+        Route::get('/{restaurant}', [PosController::class, 'show'])->name('show');
     
-    // Rute POS (Akses oleh semua peran di grup admin utama, karena sudah difilter di controller)
-    Route::get('pos', [PosController::class, 'index'])->name('pos.index');
-    Route::get('pos/{restaurant}', [PosController::class, 'show'])->name('pos.show');
-    Route::get('pos/order/table/{table}', [PosController::class, 'order'])->name('pos.order');
-    Route::post('pos/order/{order}/add', [PosController::class, 'addItem'])->name('pos.order.add');
-    Route::post('pos/order/item/{orderItem}/increase', [PosController::class, 'increaseItem'])->name('pos.order.increase');
-    Route::post('pos/order/item/{orderItem}/decrease', [PosController::class, 'decreaseItem'])->name('pos.order.decrease');
-    Route::delete('pos/order/item/{orderItem}/remove', [PosController::class, 'removeItem'])->name('pos.order.remove');
-    Route::post('pos/order/{order}/complete', [PosController::class, 'completeOrder'])->name('pos.order.complete');
-    Route::get('pos/order/{order}/print', [PosController::class, 'printBill'])->name('pos.order.print');
-    Route::post('pos/order/{order}/cancel', [PosController::class, 'cancelOrder'])->name('pos.order.cancel');
-    Route::post('pos/order/{order}/apply-discount', [PosController::class, 'applyDiscount'])->name('pos.order.discount');
-    Route::post('pos/order/{order}/charge-to-room', [PosController::class, 'chargeToRoom'])->name('pos.order.charge');
-    Route::get('pos/{restaurant}/room-service', [PosController::class, 'createRoomServiceOrder'])->name('pos.roomservice.create');
+        // Rute untuk MEMBUAT atau MENCARI order meja, lalu redirect ke halaman order
+        Route::get('/order/table/{table}', [PosController::class, 'findOrCreateOrderForTable'])->name('order.for-table');
+        
+        // Rute baru untuk MENAMPILKAN halaman order apapun (baik meja maupun room service)
+        Route::get('/order/{order}', [PosController::class, 'showOrder'])->name('order.show');
+
+        // Rute untuk aksi di dalam halaman order
+        Route::post('/order/{order}/add', [PosController::class, 'addItem'])->name('order.add');
+        Route::post('/order/item/{orderItem}/increase', [PosController::class, 'increaseItem'])->name('order.increase');
+        Route::post('/order/item/{orderItem}/decrease', [PosController::class, 'decreaseItem'])->name('order.decrease');
+        Route::delete('/order/item/{orderItem}/remove', [PosController::class, 'removeItem'])->name('order.remove');
+        Route::post('/order/{order}/complete', [PosController::class, 'completeOrder'])->name('order.complete');
+        Route::get('/order/{order}/print', [PosController::class, 'printBill'])->name('order.print');
+        Route::post('/order/{order}/cancel', [PosController::class, 'cancelOrder'])->name('order.cancel');
+        Route::post('/order/{order}/apply-discount', [PosController::class, 'applyDiscount'])->name('order.discount');
+        Route::post('/order/{order}/charge-to-room', [PosController::class, 'chargeToRoom'])->name('order.charge');
+
+        // Rute untuk Room Service
+        Route::get('/{restaurant}/room-service', [PosController::class, 'createRoomServiceOrder'])->name('roomservice.create');
+        Route::post('/{restaurant}/room-service', [PosController::class, 'storeRoomServiceOrder'])->name('roomservice.store');
+
+        Route::get('/{restaurant}/history', [PosController::class, 'history'])->name('history');
+    });
+    // ================================================================
+    // AKHIR DARI PENYESUAIAN
+    // ================================================================
 
 });
 
@@ -203,7 +217,6 @@ Route::prefix('housekeeping')->middleware(['auth', 'verified', 'role:hk,owner'])
 });
 
 // Route Pengguna Properti
-// PERBAIKAN: Menambahkan 'manager_properti' ke middleware
 Route::prefix('property')->middleware(['auth', 'verified', 'role:pengguna_properti,owner,manager_properti'])->name('property.')->group(function () {
     Route::get('/dashboard', [PropertyIncomeController::class, 'dashboard'])->name('dashboard');
     Route::get('/calendar', [PropertyIncomeController::class, 'calendar'])->name('calendar.index');
@@ -214,13 +227,14 @@ Route::prefix('property')->middleware(['auth', 'verified', 'role:pengguna_proper
         Route::get('/', [FrontOfficeController::class, 'index'])->name('index');
         Route::post('/reservation', [FrontOfficeController::class, 'storeReservation'])->name('reservation.store');
         Route::post('/check-in/{reservation}', [FrontOfficeController::class, 'checkIn'])->name('check-in');
-        Route::post('/cancel/{reservation}', [FrontOfficeController::class, 'cancel'])->name('cancel');
-        Route::post('/hotel-room/{room}/update-status', [FrontOfficeController::class, 'updateRoomStatus'])->name('room.update-status');
+        Route::delete('/cancel/{reservation}', [FrontOfficeController::class, 'cancel'])->name('cancel');
+        Route::put('/hotel-room/{room}/update-status', [FrontOfficeController::class, 'updateRoomStatus'])->name('room.update-status');
     });
 
     // --- GRUP RUTE UNTUK FOLIO ---
     Route::prefix('folio')->name('folio.')->group(function () {
-        Route::get('/{reservation}', [FolioController::class, 'show'])->name('show');
+        Route::get('/{folio}', [FolioController::class, 'show'])->name('show');
+        Route::get('/lihat/{folio}', [FolioController::class, 'show'])->name('show-new');
         Route::post('/{folio}/add-charge', [FolioController::class, 'addCharge'])->name('add-charge');
         Route::post('/{folio}/add-payment', [FolioController::class, 'addPayment'])->name('add-payment');
         Route::post('/{reservation}/process-checkout', [FolioController::class, 'processCheckout'])->name('process-checkout');
@@ -228,12 +242,7 @@ Route::prefix('property')->middleware(['auth', 'verified', 'role:pengguna_proper
     });
 
     // Rute untuk Laporan Pendapatan (Income)
-    Route::get('/income', [PropertyIncomeController::class, 'index'])->name('income.index');
-    Route::get('/income/create', [PropertyIncomeController::class, 'create'])->name('income.create');
-    Route::post('/income', [PropertyIncomeController::class, 'store'])->name('income.store');
-    Route::get('/income/{income}/edit', [PropertyIncomeController::class, 'edit'])->name('income.edit');
-    Route::put('/income/{income}', [PropertyIncomeController::class, 'update'])->name('income.update');
-    Route::delete('/income/{income}', [PropertyIncomeController::class, 'destroy'])->name('income.destroy');
+    Route::resource('income', PropertyIncomeController::class);
     Route::post('/occupancy/update', [PropertyIncomeController::class, 'updateOccupancy'])->name('occupancy.update');
 });
 

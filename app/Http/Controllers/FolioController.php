@@ -9,9 +9,15 @@ use Illuminate\Support\Facades\DB;
 
 class FolioController extends Controller
 {
-    public function show(Reservation $reservation)
+    public function show(Folio $folio)
     {
-        $folio = $reservation->folio()->with('items')->firstOrFail();
+        // Memuat semua relasi yang dibutuhkan oleh view dalam satu query
+        $folio->load('items', 'reservation.hotelRoom.roomType');
+
+        // Mengambil data reservasi dari folio yang sudah di-load
+        $reservation = $folio->reservation;
+
+        // Mengirim data yang sudah lengkap ke view
         return view('property.folios.show', compact('reservation', 'folio'));
     }
 
@@ -59,10 +65,11 @@ class FolioController extends Controller
     {
         // Validasi bisa ditambahkan di sini jika perlu
 
-        // Pastikan tagihan sudah lunas sebelum checkout
-        if ($reservation->folio && $reservation->folio->balance > 0) {
+        // PERBAIKAN: Gunakan round() untuk membulatkan saldo ke 2 angka desimal sebelum diperiksa.
+        // Ini akan mengatasi masalah floating point (angka desimal yang sangat kecil).
+        if ($reservation->folio && round($reservation->folio->balance, 2) > 0) {
             return back()->with('error', 'Folio balance must be zero or less to checkout.');
-        }                                   
+        }
 
         // 1. Perbarui status reservasi menjadi 'checked-out'
         $reservation->update([

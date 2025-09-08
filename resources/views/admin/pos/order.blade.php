@@ -1,7 +1,14 @@
 <x-admin-layout>
     <x-slot name="header">
         <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
-            Order for Table: {{ $table->name }} (Order #{{ $order->id }})
+            @if ($order->table)
+                Order for Table: {{ $order->table->name }}
+            @elseif ($order->reservation)
+                Room Service: Room {{ $order->reservation->hotelRoom->room_number ?? 'N/A' }}
+            @else
+                Order
+            @endif
+            <span class="text-base font-normal text-gray-500">(Order #{{ $order->id }})</span>
         </h2>
     </x-slot>
 

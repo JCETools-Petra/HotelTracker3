@@ -8,209 +8,249 @@ use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Restaurant;
 use App\Models\Table;
-use App\Models\Reservation; 
+use App\Models\Reservation;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use App\Models\Folio;     
-use App\Models\FolioItem; 
+use App\Models\Folio;
+use App\Models\FolioItem;
 
 class PosController extends Controller
 {
     public function index()
     {
         $user = Auth::user();
-
         if ($user->role === 'restaurant') {
-            if ($user->restaurant_id) {
-                return redirect()->route('admin.pos.show', $user->restaurant_id);
-            } else {
-                return redirect()->route('admin.dashboard')->with('error', 'Your account is not associated with any restaurant.');
-            }
+            return $user->restaurant_id
+                ? redirect()->route('admin.pos.show', $user->restaurant_id)
+                : redirect()->route('admin.dashboard')->with('error', 'Your account is not associated with any restaurant.');
         }
 
         $query = Restaurant::query();
         if ($user->role === 'manager_properti') {
             $query->where('property_id', $user->property_id);
         }
-
         $restaurants = $query->get();
 
         return view('admin.pos.index', compact('restaurants'));
     }
 
-    public function order(Table $table)
+    public function show(Restaurant $restaurant)
     {
-        // Otorisasi: Pastikan user bisa mengakses meja ini (melalui restorannya)
+        $this->authorize('viewPos', $restaurant);
+        // PERBAIKAN: Muat relasi 'pendingOrder' untuk setiap meja
+        $tables = $restaurant->tables()->with('pendingOrder')->get();
+        return view('admin.pos.show', compact('restaurant', 'tables'));
+    }
+
+    public function findOrCreateOrderForTable(Table $table)
+    {
+        // Otorisasi untuk memastikan user boleh mengakses POS ini
         $this->authorize('viewPos', $table->restaurant);
 
-        // Cari pesanan yang aktif (belum selesai/bayar) untuk meja ini
-        $order = Order::where('table_id', $table->id)
-                    ->whereNotIn('status', ['completed', 'paid', 'cancelled'])
-                    ->first();
+        // Cari pesanan yang masih 'pending' untuk meja ini.
+        // Jika tidak ada, 'firstOrCreate' akan membuat yang baru secara otomatis.
+        $order = Order::firstOrCreate(
+            ['table_id' => $table->id, 'status' => 'pending'],
+            ['restaurant_id' => $table->restaurant_id, 'user_id' => Auth::id()]
+        );
 
-        // Jika TIDAK ADA pesanan aktif DAN meja tersedia, buat pesanan baru.
-        if (!$order && $table->status == 'available') {
-            $order = Order::create([
-                'restaurant_id' => $table->restaurant_id,
-                'table_id' => $table->id,
-                'status' => 'new',
-            ]);
-            $table->update(['status' => 'occupied']);
-        } 
-        // Jika TIDAK ADA pesanan aktif TAPI meja tidak tersedia (kasus aneh), kembalikan.
-        elseif (!$order && $table->status != 'available') {
-            return redirect()->route('admin.pos.show', $table->restaurant_id)->with('error', 'Table is occupied but has no active order. Please check.');
-        }
-
-        // Ambil menu yang tersedia
-        $menuCategories = $table->restaurant->menuCategories()->with(['menus' => function ($query) {
-            $query->where('is_available', true);
-        }])->get();
+        // Ambil semua data yang dibutuhkan oleh halaman order
+        $order->load('restaurant', 'table', 'items.menu', 'reservation.hotelRoom');
         
-        // ======================================================
-        // PERBAIKAN FINAL: Menggunakan whereHas untuk query yang lebih tegas
-        // ======================================================
-        $activeReservations = Reservation::where('property_id', $table->restaurant->property_id)
+        $menuCategories = \App\Models\MenuCategory::where('restaurant_id', $order->restaurant_id)
+                                    ->with('menus')
+                                    ->get();
+        
+        $activeReservations = \App\Models\Reservation::where('property_id', $order->restaurant->property_id)
                                         ->where('status', 'checked-in')
-                                        ->whereHas('hotelRoom') // <-- Mengganti has() dengan whereHas()
                                         ->with('hotelRoom')
                                         ->get();
 
-        return view('admin.pos.order', compact('order', 'menuCategories', 'table', 'activeReservations'));
+        // PERBAIKAN UTAMA: Langsung tampilkan view, jangan redirect.
+        // Ini akan menghentikan loop 404.
+        return view('admin.pos.order', compact('order', 'menuCategories', 'activeReservations'));
+    }
+
+    public function showOrder(Order $order)
+    {
+        // Otorisasi untuk memastikan user boleh melihat order ini
+        $this->authorize('viewPos', $order->restaurant);
+        
+        // Memuat data-data terkait (relasi) yang dibutuhkan oleh halaman view
+        $order->load('restaurant', 'table', 'items.menu', 'reservation.hotelRoom');
+        
+        // Ambil KATEGORI menu untuk ditampilkan di sisi kanan
+        $menuCategories = \App\Models\MenuCategory::where('restaurant_id', $order->restaurant_id)
+                                    ->with('menus') // Eager load menus untuk setiap kategori
+                                    ->get();
+
+        // PERBAIKAN: Ambil data reservasi aktif untuk modal "Charge to Room"
+        $activeReservations = \App\Models\Reservation::where('property_id', $order->restaurant->property_id)
+                                        ->where('status', 'checked-in')
+                                        ->with('hotelRoom')
+                                        ->get();
+
+        // Kirim SEMUA data yang dibutuhkan (order, menuCategories, dan activeReservations) ke view
+        return view('admin.pos.order', compact('order', 'menuCategories', 'activeReservations'));
+    }
+
+    public function createRoomServiceOrder(Restaurant $restaurant)
+    {
+        $this->authorize('viewPos', $restaurant);
+        $activeReservations = Reservation::where('property_id', $restaurant->property_id)
+                                         ->where('status', 'checked-in')
+                                         ->with('hotelRoom')
+                                         ->get();
+        return view('admin.pos.roomservice_create', compact('restaurant', 'activeReservations'));
+    }
+
+    public function storeRoomServiceOrder(Request $request, Restaurant $restaurant)
+    {
+        $data = $request->validate([
+            'reservation_id' => 'required|exists:reservations,id',
+        ]);
+
+        $reservation = Reservation::find($data['reservation_id']);
+
+        // Buat order baru yang terhubung dengan reservasi
+        $order = Order::create([
+            'restaurant_id' => $restaurant->id,
+            'table_id' => null, // Room service tidak menggunakan meja
+            'user_id' => Auth::id(),
+            'status' => 'pending',
+            'reservation_id' => $reservation->id, // Hubungkan dengan reservasi
+        ]);
+
+        // Arahkan ke halaman order untuk pesanan yang baru dibuat
+        return redirect()->route('admin.pos.order', $order);
     }
 
     public function chargeToRoom(Request $request, Order $order)
     {
-        $this->authorize('viewPos', $order->restaurant);
-
-        $request->validate([
-            'reservation_id' => 'required|exists:reservations,id',
-        ]);
-
-        $reservation = Reservation::find($request->reservation_id);
-
-        // Pastikan reservasi memiliki folio
-        if (!$reservation->folio) {
-            return back()->with('error', 'Selected reservation does not have a folio. Cannot add charge.');
+        if (!$order->reservation_id) {
+            return back()->with('error', 'This order is not linked to a room.');
         }
 
-        // 1. Tambahkan item baru ke folio
-        $reservation->folio->items()->create([
-            'description' => "Restaurant Bill - Order #" . $order->id,
+        $folio = $order->reservation->folio;
+        if (!$folio) {
+            return back()->with('error', 'Folio for this guest was not found.');
+        }
+
+        $folio->items()->create([
+            'description' => 'Restaurant Charge - Order #' . $order->id,
             'amount' => $order->grand_total,
-            'type' => 'charge', // Tipe item adalah 'charge' atau 'debit'
+            'type' => 'charge',
         ]);
 
-        // 2. Perbarui status pesanan
-        $order->update([
-            'status' => 'billed_to_room',
-            'reservation_id' => $reservation->id,
-        ]);
+        $folio->recalculate();
+        $order->update(['status' => 'completed']);
 
-        // 3. Kosongkan kembali meja
-        if ($order->table) {
-            $order->table->update(['status' => 'available']);
-        }
-
-        return redirect()->route('admin.pos.show', $order->restaurant_id)
-                         ->with('success', "Order #{$order->id} has been successfully charged to Room " . ($reservation->hotel_room->number ?? 'N/A'));
-    }
-
-    /**
-     * Tampilkan halaman POS untuk restoran yang dipilih.
-     */
-    public function show(Restaurant $restaurant)
-    {
-        // Otorisasi: Pastikan pengguna boleh mengakses POS ini.
-        $this->authorize('viewPos', $restaurant);
-
-        // Ambil semua meja dari restoran ini
-        $tables = $restaurant->tables()->get();
-
-        return view('admin.pos.show', compact('restaurant', 'tables'));
+        return redirect()->route('admin.pos.show', $order->restaurant)
+            ->with('success', 'Bill successfully charged to Room ' . $order->reservation->hotelRoom->room_number);
     }
 
     public function addItem(Request $request, Order $order)
     {
-        // Validasi input
-        $request->validate([
-            'menu_id' => 'required|exists:menus,id',
-        ]);
-
-        $menu = Menu::find($request->menu_id);
-
-        // Otorisasi: Pastikan user bisa memodifikasi pesanan ini
+        $request->validate(['menu_id' => 'required|exists:menus,id']);
+        $menu = \App\Models\Menu::find($request->menu_id);
         $this->authorize('viewPos', $order->restaurant);
 
-        // Cek apakah item sudah ada di pesanan
         $orderItem = $order->items()->where('menu_id', $menu->id)->first();
 
         if ($orderItem) {
-            // Jika sudah ada, tambah kuantitasnya
+            // Jika item sudah ada, tambah kuantitasnya
             $orderItem->increment('quantity');
-            $orderItem->update(['total_price' => $orderItem->quantity * $orderItem->price]);
         } else {
-            // Jika belum ada, buat item baru
+            // Jika item baru, buat entri baru
             $order->items()->create([
                 'menu_id' => $menu->id,
                 'quantity' => 1,
-                'price' => $menu->price, // Simpan harga saat ini
+                'price' => $menu->price,
+                // PERBAIKAN: Tambahkan 'total_price' saat membuat item baru.
+                // Karena kuantitasnya 1, total_price sama dengan harga menu.
                 'total_price' => $menu->price,
             ]);
         }
         
-        // Hitung ulang total pesanan
+        // Hitung ulang total pesanan setelah ada perubahan
         $this->recalculateOrderTotal($order);
 
         return back()->with('success', 'Item added to order.');
     }
 
-    /**
-     * Helper function untuk menghitung ulang total pesanan.
-     */
+    public function decreaseItem(OrderItem $orderItem)
+    {
+        $this->authorize('viewPos', $orderItem->order->restaurant);
+        if ($orderItem->quantity > 1) {
+            $orderItem->decrement('quantity');
+        } else {
+            $orderItem->delete();
+        }
+        $this->recalculateOrderTotal($orderItem->order);
+        return back();
+    }
+
+    public function removeItem(OrderItem $orderItem)
+    {
+        $this->authorize('viewPos', $orderItem->order->restaurant);
+        $order = $orderItem->order;
+        $orderItem->delete();
+        $this->recalculateOrderTotal($order);
+        return back()->with('success', 'Item removed from order.');
+    }
+
     public function applyDiscount(Request $request, Order $order)
     {
         $this->authorize('viewPos', $order->restaurant);
-
-        $request->validate([
-            'discount_type' => 'required|in:percentage,fixed',
-            'discount_value' => 'required|numeric|min:0',
-        ]);
-
-        $order->update([
-            'discount_type' => $request->discount_type,
-            'discount_value' => $request->discount_value,
-        ]);
-
+        $request->validate(['discount_type' => 'required|in:percentage,fixed', 'discount_value' => 'required|numeric|min:0']);
+        $order->update(['discount_type' => $request->discount_type, 'discount_value' => $request->discount_value]);
         $this->recalculateOrderTotal($order);
-
         return back()->with('success', 'Discount applied successfully.');
+    }
+
+    public function completeOrder(Order $order)
+    {
+        $this->authorize('viewPos', $order->restaurant);
+        $order->update(['status' => 'completed']);
+        if ($order->table) {
+            $order->table->update(['status' => 'available']);
+        }
+        return redirect()->route('admin.pos.show', $order->restaurant_id)->with('success', "Order #{$order->id} has been completed and paid.");
+    }
+
+    public function cancelOrder(Order $order)
+    {
+        $this->authorize('viewPos', $order->restaurant);
+        $order->update(['status' => 'cancelled']);
+        if ($order->table) {
+            $order->table->update(['status' => 'available']);
+        }
+        return redirect()->route('admin.pos.show', $order->restaurant_id)->with('success', "Order #{$order->id} has been cancelled.");
+    }
+
+    public function printBill(Order $order)
+    {
+        $this->authorize('viewPos', $order->restaurant);
+        return view('admin.pos.print', compact('order'));
     }
 
     private function recalculateOrderTotal(Order $order)
     {
         $order->load('items');
-
-        $subtotal = $order->items->sum('total_price');
+        $subtotal = $order->items->sum(function($item) {
+            return $item->quantity * $item->price;
+        });
         
-        // Kalkulasi Diskon
         $discountAmount = 0;
         if ($order->discount_type === 'percentage') {
-            // Diskon persen dihitung dari subtotal
             $discountAmount = $subtotal * ($order->discount_value / 100);
         } elseif ($order->discount_type === 'fixed') {
-            // Diskon nominal langsung mengurangi
             $discountAmount = $order->discount_value;
         }
-
-        // Pastikan diskon tidak lebih besar dari subtotal
-        if ($discountAmount > $subtotal) {
-            $discountAmount = $subtotal;
-        }
+        if ($discountAmount > $subtotal) { $discountAmount = $subtotal; }
         
-        // Kalkulasi Pajak setelah diskon
         $taxableAmount = $subtotal - $discountAmount;
-        $taxRate = 0.11; // 11%
+        $taxRate = $order->restaurant->tax_rate ?? 0.11; // 11% default
         $taxAmount = $taxableAmount * $taxRate;
         
         $grandTotal = $taxableAmount + $taxAmount;
@@ -223,89 +263,18 @@ class PosController extends Controller
         ]);
     }
 
-    /**
-     * Mengurangi kuantitas item pesanan.
-     */
-    public function decreaseItem(OrderItem $orderItem)
-    {
-        $this->authorize('viewPos', $orderItem->order->restaurant);
-
-        if ($orderItem->quantity > 1) {
-            $orderItem->decrement('quantity');
-            $orderItem->update(['total_price' => $orderItem->quantity * $orderItem->price]);
-        } else {
-            // Jika kuantitas 1, hapus item
-            $orderItem->delete();
-        }
-
-        $this->recalculateOrderTotal($orderItem->order);
-
-        return back();
-    }
-
-    /**
-     * Menghapus item dari pesanan.
-     */
-    public function removeItem(OrderItem $orderItem)
-    {
-        $this->authorize('viewPos', $orderItem->order->restaurant);
-        
-        $order = $orderItem->order; // Simpan order sebelum item dihapus
-        $orderItem->delete();
-
-        $this->recalculateOrderTotal($order);
-
-        return back()->with('success', 'Item removed from order.');
-    }
-
-    public function completeOrder(Order $order)
-    {
-        $this->authorize('viewPos', $order->restaurant);
-
-        // 1. Ubah status pesanan menjadi 'completed' atau 'paid'
-        $order->update(['status' => 'completed']);
-
-        // 2. Ambil meja yang terkait dan ubah statusnya menjadi 'available'
-        if ($order->table) {
-            $order->table->update(['status' => 'available']);
-        }
-
-        // 3. Arahkan kembali ke tampilan meja dengan pesan sukses
-        return redirect()->route('admin.pos.show', $order->restaurant_id)->with('success', "Order #{$order->id} has been completed and paid.");
-    }
-
-    public function cancelOrder(Order $order)
-    {
-        $this->authorize('viewPos', $order->restaurant);
-
-        // 1. Ubah status pesanan menjadi 'cancelled'
-        $order->update(['status' => 'cancelled']);
-
-        // 2. Kosongkan meja
-        if ($order->table) {
-            $order->table->update(['status' => 'available']);
-        }
-
-        return redirect()->route('admin.pos.show', $order->restaurant_id)->with('success', "Order #{$order->id} has been cancelled.");
-    }
-
-    public function printBill(Order $order)
-    {
-        $this->authorize('viewPos', $order->restaurant);
-        
-        // Kita akan buat view khusus untuk cetak
-        return view('admin.pos.print', compact('order'));
-    }
-
-    public function createRoomServiceOrder(Restaurant $restaurant)
+    public function history(Restaurant $restaurant)
     {
         $this->authorize('viewPos', $restaurant);
 
-        $activeReservations = Reservation::where('property_id', $restaurant->property_id)
-                                          ->where('status', 'checked-in')
-                                          ->with('hotelRoom')
-                                          ->get();
-        
-        return view('admin.pos.roomservice_create', compact('restaurant', 'activeReservations'));
+        // Ambil semua pesanan yang sudah selesai atau dibatalkan untuk restoran ini
+        $orders = \App\Models\Order::where('restaurant_id', $restaurant->id)
+            ->whereIn('status', ['completed', 'cancelled'])
+            ->with(['table', 'reservation.hotelRoom']) // Ambil juga data meja atau kamar
+            ->latest() // Urutkan dari yang terbaru
+            ->paginate(20); // Batasi 20 pesanan per halaman
+
+        return view('admin.pos.history', compact('restaurant', 'orders'));
     }
+    
 }

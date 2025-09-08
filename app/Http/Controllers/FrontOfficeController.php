@@ -30,6 +30,7 @@ class FrontOfficeController extends Controller
 
         // 2. Ambil HANYA reservasi yang aktif pada tanggal yang sedang dilihat.
         $activeReservations = Reservation::where('property_id', $property->id)
+            ->with('folio') // <-- Memuat relasi folio
             ->where(function ($query) use ($viewDate) {
                 $query->where('checkin_date', '<=', $viewDate->endOfDay())
                       ->where('checkout_date', '>', $viewDate->startOfDay());
@@ -64,7 +65,7 @@ class FrontOfficeController extends Controller
             'hotel_room_id' => 'required|exists:hotel_rooms,id',
             'guest_name' => 'required|string|max:255',
             'guest_phone' => 'nullable|string|max:25',
-            'guest_address' => 'nullable|string|max:500',
+            'guest_address' => 'nullable|string|max:500', // Validasi tetap ada
             'checkin_date' => 'required|date',
             'checkout_date' => 'required|date|after_or_equal:checkin_date',
             'segment' => 'required|string',
@@ -84,7 +85,7 @@ class FrontOfficeController extends Controller
             'room_type_id' => $hotelRoom->room_type_id,
             'guest_name' => $validated['guest_name'],
             'guest_phone' => $validated['guest_phone'],
-            'guest_address' => $validated['guest_address'],
+            'guest_address' => $validated['guest_address'] ?? null, // <-- PERBAIKAN DI SINI
             'checkin_date' => $validated['checkin_date'],
             'checkout_date' => $validated['checkout_date'],
             'segment' => $validated['segment'],
@@ -98,12 +99,18 @@ class FrontOfficeController extends Controller
     
     public function checkIn(Request $request, Reservation $reservation)
     {
-        $data = $request->validate(['key_number' => 'nullable|string|max:50']);
+        // Validasi input, key_number boleh kosong (nullable)
+        $data = $request->validate([
+            'key_number' => 'nullable|string|max:50'
+        ]);
 
+        // Update reservasi
         $reservation->update([
             'status' => 'Checked-in',
             'checked_in_at' => now(),
-            'key_number' => $data['key_number'],
+            // PERBAIKAN: Gunakan '?? null'. 
+            // Jika $data['key_number'] tidak ada, maka akan diisi null. TIDAK AKAN ERROR.
+            'key_number' => $data['key_number'] ?? null,
         ]);
 
         return redirect()->route('property.frontoffice.index', ['date' => $reservation->checkin_date->toDateString()])

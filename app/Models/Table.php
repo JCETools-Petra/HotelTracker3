@@ -19,4 +19,21 @@ class Table extends Model
     {
         return $this->belongsTo(Restaurant::class);
     }
+
+    /**
+     * Relasi untuk mengambil SEMUA order yang terkait dengan meja ini.
+     */
+    public function orders()
+    {
+        return $this->hasMany(Order::class);
+    }
+
+    /**
+     * Relasi untuk mengambil HANYA order yang statusnya 'pending'.
+     * Ini digunakan untuk menentukan apakah meja sedang terisi atau tidak.
+     */
+    public function pendingOrder()
+    {
+        return $this->hasOne(Order::class)->where('status', 'pending');
+    }
 }

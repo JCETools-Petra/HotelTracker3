@@ -11,6 +11,8 @@ class HotelRoom extends Model
 {
     use HasFactory, SoftDeletes;
 
+    protected $guarded = ['id'];
+
     public const STATUS_TERSEDIA = 'Tersedia';
     public const STATUS_TERISI = 'Terisi';
     public const STATUS_KOTOR = 'Kotor';
@@ -40,4 +42,5 @@ class HotelRoom extends Model
     {
         return $this->hasMany(Reservation::class);
     }
+    
 }
