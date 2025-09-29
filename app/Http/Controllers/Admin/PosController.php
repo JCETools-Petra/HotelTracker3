@@ -122,7 +122,7 @@ class PosController extends Controller
         ]);
 
         // Arahkan ke halaman order untuk pesanan yang baru dibuat
-        return redirect()->route('admin.pos.order', $order);
+        return redirect()->route('admin.pos.order.show', $order);
     }
 
     public function chargeToRoom(Request $request, Order $order)

@@ -21,7 +21,7 @@
                                 <option value="">-- Select a room --</option>
                                 @foreach($activeReservations as $reservation)
                                     <option value="{{ $reservation->id }}">
-                                        Room {{ $reservation->hotelRoom->number ?? 'N/A' }} - {{ $reservation->guest_name }}
+                                        Room {{ $reservation->hotelRoom->room_number ?? 'N/A' }} - {{ $reservation->guest_name }}
                                     </option>
                                 @endforeach
                             </select>

@@ -181,6 +181,7 @@ Route::prefix('admin')->middleware(['auth', 'verified', 'role:admin,owner,pengur
         Route::post('/{restaurant}/room-service', [PosController::class, 'storeRoomServiceOrder'])->name('roomservice.store');
 
         Route::get('/{restaurant}/history', [PosController::class, 'history'])->name('history');
+        Route::get('/order/{order}', [PosController::class, 'showOrder'])->name('order.show');
     });
     // ================================================================
     // AKHIR DARI PENYESUAIAN
